@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>File to XML Paster</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/png" href="resources/logo.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
+
 <body>
     <div class="container">
         <div class="app-header">
@@ -16,57 +18,84 @@
                 <span class="author">by OttoCR</span>
             </div>
         </div>
+
         <div id="drop-area" class="drop-zone">
             <p>Drag and drop files or folders here</p>
             <input type="file" id="fileInput" multiple="multiple" webkitdirectory="webkitdirectory">
             <button id="select-files">Select Files/Folders</button>
         </div>
         <div id="file-list" class="file-list"></div>
-        <div class="request-container">
-            <label for="request-input">Enter Request (Optional):</label>
-            <textarea id="request-input" rows="4" placeholder="Type your specific request or instructions here..."></textarea>
+
+        <div class="tabs-container">
+            <button id="xml-mode-tab" class="tab-button active-tab">XML Mode</button>
+            <button id="line-anchored-tab" class="tab-button">Line Anchored Mode</button>
         </div>
-        <button id="generate-xml" class="generate-btn">Generate XML and Copy to Clipboard</button>
-        
-        <div class="xml-section">
-            <div class="xml-input-container">
-                <label for="xml-input">XML Code to Apply:</label>
-                <textarea id="xml-input" rows="4" placeholder="Paste the XML code here to apply changes..."></textarea>
-                <button id="apply-xml" class="apply-btn">Apply XML Code</button>
+
+        <!-- XML MODE CONTAINER -->
+        <div id="xml-mode-container">
+            <div class="request-container">
+                <label for="request-input">Enter Request (Optional):</label>
+                <textarea id="request-input" rows="4"
+                    placeholder="Type your specific request or instructions here..."></textarea>
             </div>
-            <div class="xml-results">
-                <h3>Changes to Apply:</h3>
-                <div id="changes-list" class="changes-list"></div>
-                <div id="diff-viewer" class="diff-viewer">
-                    <div class="diff-header">
-                        <h3>File Changes Preview</h3>
-                        <div class="diff-controls">
-                            <label class="toggle-container">
-                                <input type="checkbox" id="diff-toggle" checked>
-                                <span class="toggle-label">Show Diff View</span>
-                            </label>
+            <button id="generate-xml" class="generate-btn">Generate XML and Copy to Clipboard</button>
+
+            <div class="xml-section">
+                <div class="xml-input-container">
+                    <label for="xml-input">XML Code to Apply:</label>
+                    <textarea id="xml-input" rows="4"
+                        placeholder="Paste the XML code here to apply changes..."></textarea>
+                    <button id="apply-xml" class="apply-btn">Apply XML Code</button>
+                </div>
+                <div class="xml-results">
+                    <h3>Changes to Apply:</h3>
+                    <div id="changes-list" class="changes-list"></div>
+                    <div id="diff-viewer" class="diff-viewer">
+                        <div class="diff-header">
+                            <h3>File Changes Preview</h3>
+                            <div class="diff-controls">
+                                <label class="toggle-container">
+                                    <input type="checkbox" id="diff-toggle" checked>
+                                    <span class="toggle-label">Show Diff View</span>
+                                </label>
+                            </div>
                         </div>
-                    </div>
-                    <div class="diff-content"></div>
-                    <div id="diff-loading" class="diff-loading hidden">
-                        <div class="loading-spinner"></div>
-                        <span>Generating diff view...</span>
-                        <!-- New progress bar container -->
-                        <div id="diff-progress" class="diff-progress-container hidden">
-                            <div id="diff-progress-bar" class="diff-progress-bar"></div>
+                        <div class="diff-content"></div>
+                        <div id="diff-loading" class="diff-loading hidden">
+                            <div class="loading-spinner"></div>
+                            <span>Generating diff view...</span>
+                            <div id="diff-progress" class="diff-progress-container hidden">
+                                <div id="diff-progress-bar" class="diff-progress-bar"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- LINE ANCHORED MODE CONTAINER -->
+        <div id="line-anchored-container" style="display: none;">
+            <div class="request-container">
+                <label for="line-anchored-request-input">Enter Request (Optional):</label>
+                <textarea id="line-anchored-request-input" rows="4"
+                    placeholder="Type your line-anchored instructions here..."></textarea>
+            </div>
+            <button id="generate-anchored-prompt" class="generate-btn">Generate Line-Anchored Prompt &amp; Copy</button>
+
+            <div class="request-container">
+                <label for="anchored-prompt-output">Generated Prompt:</label>
+                <textarea id="anchored-prompt-output" rows="10" readonly></textarea>
+            </div>
+        </div>
+
         <div class="history-section">
             <h2 class="section-title">Change History</h2>
             <div id="history-list" class="history-list">
-                <!-- History items will be added here -->
+                <!-- History items will be added here dynamically -->
             </div>
         </div>
     </div>
     <script src="renderer.js"></script>
 </body>
+
 </html>

@@ -1,3 +1,6 @@
+/*****************************************************************************************
+ * renderer.js
+ *****************************************************************************************/
 const { ipcRenderer } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -31,7 +34,7 @@ function preprocessCode(code) {
             const content = line.trim()
                 // Remove all whitespace first
                 .replace(/\s+/g, ' ')
-                // Then add normalized spacing for common patterns
+                // Then add normalized spacing for common punctuation and symbols
                 .replace(/([,;=:\{\}\(\)\[\]])/g, ' $1 ')
                 // Clean up any double spaces created
                 .replace(/\s+/g, ' ')
@@ -46,21 +49,20 @@ function preprocessCode(code) {
                 .replace(/\s*\)\s*/g, ')')
                 .replace(/\s*\[\s*/g, '[')
                 .replace(/\s*\]\s*/g, ']')
-                .trim(); // Final trim
-            
+                .trim();
+
             return { indent, content, original: line };
         })
         .filter(line => line.content.length > 0) // Remove empty or whitespace-only lines
-        .map(line => line.indent + line.content); // Reconstruct
+        .map(line => line.indent + line.content);
 }
 
-// Function to select anchor points from code
 function selectAnchorPoints(lines, count = 10) {
     if (lines.length <= count) return lines.map((line, i) => ({ line, index: i }));
-    
+
     const anchors = [];
     const candidates = [];
-    
+
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         // Look for lines that:
@@ -72,30 +74,30 @@ function selectAnchorPoints(lines, count = 10) {
             !line.match(/^[\s{}\[\]();]*$/) &&
             !line.match(/^\/\//) &&
             (line.includes('function ') ||
-             line.includes('class ') ||
-             line.includes(' = ') ||
-             line.includes('const ') ||
-             line.includes('let '))
+                line.includes('class ') ||
+                line.includes(' = ') ||
+                line.includes('const ') ||
+                line.includes('let '))
         ) {
             candidates.push({ line: lines[i], index: i, score: calculateAnchorScore(line) });
         }
     }
-    
+
     // Sort and pick top candidates, distributing them
     candidates.sort((a, b) => b.score - a.score);
     const totalSections = Math.min(count, candidates.length);
     const sectionSize = Math.floor(lines.length / totalSections);
-    
+
     for (let section = 0; section < totalSections; section++) {
         const sectionStart = section * sectionSize;
         const sectionEnd = sectionStart + sectionSize;
-        
+
         const sectionCandidates = candidates.filter(c => c.index >= sectionStart && c.index < sectionEnd);
         if (sectionCandidates.length > 0) {
             anchors.push(sectionCandidates[0]);
         }
     }
-    
+
     return anchors;
 }
 
@@ -117,13 +119,13 @@ function calculateAnchorScore(line) {
 function findLineOffset(oldLines, newLines) {
     const anchors = selectAnchorPoints(oldLines);
     const offsets = new Map();
-    
+
     for (const anchor of anchors) {
         const anchorLine = anchor.line;
         const oldIndex = anchor.index;
         const searchStart = Math.max(0, oldIndex - 50);
         const searchEnd = Math.min(newLines.length, oldIndex + 50);
-        
+
         for (let i = searchStart; i < searchEnd; i++) {
             if (newLines[i] === anchorLine) {
                 const offset = i - oldIndex;
@@ -132,7 +134,7 @@ function findLineOffset(oldLines, newLines) {
             }
         }
     }
-    
+
     let maxCount = 0;
     let mostCommonOffset = 0;
     for (const [offset, count] of offsets) {
@@ -141,18 +143,17 @@ function findLineOffset(oldLines, newLines) {
             mostCommonOffset = offset;
         }
     }
-    
+
     return mostCommonOffset;
 }
 
-// Core diff function that returns an array describing changes
 function findMinimalDiff(oldLines, newLines) {
     const diff = [];
     const oldFiltered = oldLines.filter(line => line.trim().length > 0);
     const newFiltered = newLines.filter(line => line.trim().length > 0);
-    
+
     const lineOffset = findLineOffset(oldFiltered, newFiltered);
-    
+
     const newLineMap = new Map();
     newFiltered.forEach((line, index) => {
         if (!newLineMap.has(line)) {
@@ -160,12 +161,12 @@ function findMinimalDiff(oldLines, newLines) {
         }
         newLineMap.get(line).push(index);
     });
-    
+
     let oldIndex = 0;
     let newIndex = 0;
     let oldLineNumber = 1;
     let newLineNumber = 1;
-    
+
     while (oldIndex < oldFiltered.length || newIndex < newFiltered.length) {
         if (oldIndex >= oldFiltered.length) {
             while (newIndex < newFiltered.length) {
@@ -195,10 +196,10 @@ function findMinimalDiff(oldLines, newLines) {
             }
             break;
         }
-        
+
         const oldLine = oldFiltered[oldIndex];
         const newLine = newFiltered[newIndex];
-        
+
         if (oldLine.trim().length === 0) {
             oldIndex++;
             oldLineNumber++;
@@ -209,7 +210,7 @@ function findMinimalDiff(oldLines, newLines) {
             newLineNumber++;
             continue;
         }
-        
+
         const expectedNewIndex = oldIndex + lineOffset;
         if (expectedNewIndex >= 0 && expectedNewIndex < newFiltered.length &&
             oldLine === newFiltered[expectedNewIndex]) {
@@ -236,13 +237,13 @@ function findMinimalDiff(oldLines, newLines) {
             newLineNumber++;
             continue;
         }
-        
+
         const possibleNewIndices = newLineMap.get(oldLine) || [];
         let bestMatch = -1;
         let bestScore = -1;
         for (const idx of possibleNewIndices) {
             if (Math.abs(idx - (oldIndex + lineOffset)) > 5) continue;
-            
+
             let score = 10 - Math.abs(idx - (oldIndex + lineOffset));
             const contextSize = 2;
             let contextMatches = 0;
@@ -258,14 +259,14 @@ function findMinimalDiff(oldLines, newLines) {
                     contextMatches++;
                 }
             }
-            
+
             score += contextMatches * 2;
             if (score > bestScore) {
                 bestScore = score;
                 bestMatch = idx;
             }
         }
-        
+
         if (bestScore > 0 && bestMatch !== -1) {
             while (newIndex < bestMatch) {
                 if (newFiltered[newIndex].trim().length > 0) {
@@ -290,7 +291,7 @@ function findMinimalDiff(oldLines, newLines) {
             newLineNumber++;
             continue;
         }
-        
+
         if (oldLine !== newLine) {
             diff.push({
                 type: 'remove',
@@ -299,8 +300,8 @@ function findMinimalDiff(oldLines, newLines) {
             });
             oldIndex++;
             oldLineNumber++;
-            
-            const futureMatch = possibleNewIndices.find(idx => 
+
+            const futureMatch = possibleNewIndices.find(idx =>
                 idx > newIndex && Math.abs(idx - (oldIndex + lineOffset)) < 3
             );
             if (!futureMatch) {
@@ -314,36 +315,33 @@ function findMinimalDiff(oldLines, newLines) {
             }
         }
     }
-    
+
     return diff;
 }
 
-// Build the diff array (without rendering) so we can render it in chunks
 function buildDiffArray(originalContent, newContent) {
     originalContent = originalContent || '';
     newContent = newContent || '';
-    
+
     const originalLines = preprocessCode(originalContent);
     const newLines = preprocessCode(newContent);
-    
+
     const diff = findMinimalDiff(originalLines, newLines);
     return diff;
 }
 
-// Render the diff array in chunks to avoid blocking the UI
 async function renderDiffInChunks(diff, container) {
-    container.innerHTML = ''; // Clear existing
+    container.innerHTML = '';
     if (!diff.length) {
         container.innerHTML = '<div class="diff-header">No changes detected</div>';
         return;
     }
-    
+
     const limitedDiff = diff.slice(0, MAX_DIFF_LINES);
     const total = limitedDiff.length;
-    const chunkSize = 200; // lines to render in each chunk
+    const chunkSize = 200;
     let index = 0;
 
-    // Show truncated notice if total diff lines exceed MAX_DIFF_LINES
     if (diff.length > MAX_DIFF_LINES) {
         container.innerHTML += `<div class="line separator">Diff is too large; only the first ${MAX_DIFF_LINES} lines are displayed.</div>`;
     }
@@ -356,13 +354,11 @@ async function renderDiffInChunks(diff, container) {
     }
 
     while (index < total) {
-        // small delay to let UI update
         await new Promise(resolve => setTimeout(resolve, 10));
 
         const chunk = limitedDiff.slice(index, index + chunkSize);
         index += chunkSize;
 
-        // Build chunk HTML
         let chunkHtml = '';
         for (let i = 0; i < chunk.length; i++) {
             const current = chunk[i];
@@ -385,7 +381,6 @@ async function renderDiffInChunks(diff, container) {
                         <span class="line-content">${escapeHtml(current.line)}</span>
                     </div>`;
             } else {
-                // fallback
                 chunkHtml += `
                     <div class="line">
                         <span class="line-number"></span>
@@ -394,10 +389,8 @@ async function renderDiffInChunks(diff, container) {
             }
         }
 
-        // Append chunk
         container.innerHTML += chunkHtml;
 
-        // Update progress
         const progress = Math.min(Math.floor((index / total) * 100), 100);
         if (diffProgressBar) {
             diffProgressBar.style.width = `${progress}%`;
@@ -405,21 +398,18 @@ async function renderDiffInChunks(diff, container) {
     }
 
     if (diffProgress && diffProgressBar) {
-        // Hide after complete
         setTimeout(() => {
             diffProgress.classList.add('hidden');
         }, 600);
     }
 }
 
-// Helper function
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// Load and display history
 async function loadHistory() {
     const history = await ipcRenderer.invoke('get-history');
     const historyList = document.getElementById('history-list');
@@ -440,7 +430,7 @@ async function loadHistory() {
 
         const changes = document.createElement('div');
         changes.className = 'changes';
-        
+
         const changesList = entry.changes.map(change => {
             const status = change.success ? '✓' : '✗';
             const statusColor = change.success ? 'color: #34c759;' : 'color: #ff3b30;';
@@ -454,12 +444,11 @@ async function loadHistory() {
                     <div class="diff-file-header">${path.basename(change.path)}</div>
                     <div class="diff-content">
                 `;
-                // Instead of chunking in history, just do a simple single render
                 const diffArray = buildDiffArray(change.originalContent, change.newContent);
                 if (diffArray.length === 0) {
                     changeHtml += `<div class="diff-header">No changes detected</div>`;
                 } else {
-                    const limitedDiff = diffArray.slice(0, 100); // short snippet in history
+                    const limitedDiff = diffArray.slice(0, 100);
                     if (diffArray.length > 100) {
                         changeHtml += `<div class="line separator">Showing first 100 lines only</div>`;
                     }
@@ -485,7 +474,7 @@ async function loadHistory() {
                         }
                     });
                 }
-                changeHtml += `</div>`; // close diff-content
+                changeHtml += `</div>`;
             }
 
             return changeHtml;
@@ -505,6 +494,28 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory().catch(err => {
         console.error('Error loading history:', err);
     });
+
+    // Tab switching logic
+    const xmlModeTab = document.getElementById('xml-mode-tab');
+    const lineAnchoredTab = document.getElementById('line-anchored-tab');
+    const xmlModeContainer = document.getElementById('xml-mode-container');
+    const lineAnchoredContainer = document.getElementById('line-anchored-container');
+
+    if (xmlModeTab && lineAnchoredTab && xmlModeContainer && lineAnchoredContainer) {
+        xmlModeTab.addEventListener('click', () => {
+            xmlModeTab.classList.add('active-tab');
+            lineAnchoredTab.classList.remove('active-tab');
+            xmlModeContainer.style.display = 'block';
+            lineAnchoredContainer.style.display = 'none';
+        });
+
+        lineAnchoredTab.addEventListener('click', () => {
+            lineAnchoredTab.classList.add('active-tab');
+            xmlModeTab.classList.remove('active-tab');
+            lineAnchoredContainer.style.display = 'block';
+            xmlModeContainer.style.display = 'none';
+        });
+    }
 });
 
 document.getElementById('select-files').addEventListener('click', async () => {
@@ -529,9 +540,9 @@ document.getElementById('drop-area').addEventListener('drop', (e) => {
     e.preventDefault();
     e.stopPropagation();
     document.getElementById('drop-area').classList.remove('drag-over');
-    
+
     const filePaths = [];
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         for (let i = 0; i < e.dataTransfer.files.length; i++) {
             const file = e.dataTransfer.files[i];
@@ -540,7 +551,7 @@ document.getElementById('drop-area').addEventListener('drop', (e) => {
             }
         }
     }
-    
+
     if (filePaths.length === 0 && e.dataTransfer.items) {
         for (let i = 0; i < e.dataTransfer.items.length; i++) {
             const item = e.dataTransfer.items[i];
@@ -573,7 +584,7 @@ document.getElementById('drop-area').addEventListener('drop', (e) => {
             }
         }
     }
-    
+
     if (filePaths.length === 0) {
         try {
             const text = e.dataTransfer.getData('text');
@@ -582,7 +593,7 @@ document.getElementById('drop-area').addEventListener('drop', (e) => {
                     line.trim().length > 0 &&
                     (line.includes(':\\') || line.startsWith('/'))
                 );
-                
+
                 potentialPaths.forEach(potentialPath => {
                     try {
                         if (fs.existsSync(potentialPath)) {
@@ -597,7 +608,7 @@ document.getElementById('drop-area').addEventListener('drop', (e) => {
             console.error('Error parsing drag transfer text', err);
         }
     }
-    
+
     const uniqueFilePaths = [...new Set(filePaths)];
     addFilesToList(uniqueFilePaths);
 });
@@ -613,9 +624,9 @@ document.getElementById('generate-xml').addEventListener('click', async () => {
         alert('Please select files or folders first');
         return;
     }
-    
+
     const requestText = document.getElementById('request-input').value;
-    
+
     const xmlContent = await ipcRenderer.invoke('generate-xml', {
         filePaths: Array.from(selectedFiles),
         request: requestText
@@ -623,12 +634,34 @@ document.getElementById('generate-xml').addEventListener('click', async () => {
     alert('XML has been copied to clipboard!');
 });
 
+// NEW EVENT LISTENER FOR LINE-ANCHORED MODE
+document.getElementById('generate-anchored-prompt').addEventListener('click', async () => {
+    if (selectedFiles.size === 0) {
+        alert('Please select files or folders first');
+        return;
+    }
+
+    const requestText = document.getElementById('line-anchored-request-input').value;
+    const anchoredPrompt = await ipcRenderer.invoke('generate-line-anchored-prompt', {
+        filePaths: Array.from(selectedFiles),
+        request: requestText
+    });
+
+    // Display or copy the prompt
+    const anchoredPromptArea = document.getElementById('anchored-prompt-output');
+    anchoredPromptArea.value = anchoredPrompt;
+    anchoredPromptArea.focus();
+    anchoredPromptArea.select();
+    document.execCommand('copy');
+    alert('Line-Anchored Prompt has been generated and copied to clipboard!');
+});
+
 async function displayChanges(xmlContent) {
     const changesList = document.getElementById('changes-list');
     const diffViewer = document.querySelector('.diff-content');
     const diffLoading = document.getElementById('diff-loading');
     const diffToggle = document.getElementById('diff-toggle');
-    
+
     changesList.innerHTML = '';
     if (diffViewer) {
         diffViewer.innerHTML = '';
@@ -644,12 +677,76 @@ async function displayChanges(xmlContent) {
         const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
         const parseError = xmlDoc.querySelector('parsererror');
         if (parseError) {
-            changesList.innerHTML = `<div class="change-item">Invalid XML format: ${parseError.textContent}</div>`;
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'change-item error';
+
+            const lineMatch = parseError.textContent.match(/error on line (\d+)/i);
+            const columnMatch = parseError.textContent.match(/column (\d+)/i);
+            const line = lineMatch ? lineMatch[1] : '?';
+            const column = columnMatch ? columnMatch[1] : '?';
+
+            let errorMessage = `XML Parsing Error at line ${line}, column ${column}:\n`;
+            errorMessage += parseError.textContent;
+
+            if (xmlContent && line !== '?') {
+                const lines = xmlContent.split('\n');
+                const lineNum = parseInt(line);
+                const contextStart = Math.max(0, lineNum - 3);
+                const contextEnd = Math.min(lines.length, lineNum + 2);
+
+                let inTemplateLiteral = false;
+                let backtickCount = 0;
+                for (let i = 0; i < lineNum; i++) {
+                    const matches = lines[i].match(/`/g);
+                    if (matches) {
+                        backtickCount += matches.length;
+                    }
+                }
+                inTemplateLiteral = backtickCount % 2 === 1;
+
+                errorMessage += '\n\nContext:\n';
+                for (let i = contextStart; i < contextEnd; i++) {
+                    errorMessage += `${i + 1}: ${lines[i]}\n`;
+                    if (i + 1 === lineNum && column !== '?') {
+                        errorMessage += `${' '.repeat(column)}^ Error occurs here\n`;
+                    }
+                }
+
+                if (inTemplateLiteral) {
+                    errorMessage += '\nDetected error within template literal (backtick) code block.\nPossible fixes:\n';
+                    if (parseError.textContent.includes('CDATA') || parseError.textContent.includes(']]]]><![CDATA[>')) {
+                        errorMessage += '- For XML/CDATA content within code, use string concatenation instead of direct inclusion\n';
+                        errorMessage += '- Example: xmlContent += `<content><![CDATA[` + codeContent + `]]]]><![CDATA[></content>`\n';
+                        errorMessage += '- Or escape special sequences: replace "]]]]><![CDATA[>" with "]]]]]]><![CDATA[><![CDATA[>"\n';
+                    }
+                    if (parseError.textContent.includes('tag')) {
+                        errorMessage += '- XML tags in code should be properly escaped or concatenated\n';
+                        errorMessage += '- Consider using a template function to generate XML safely\n';
+                    }
+                } else {
+                    errorMessage += '\nPossible fixes:\n';
+                    if (parseError.textContent.includes('CDATA')) {
+                        errorMessage += '- Ensure CDATA sections are properly formatted: <![CDATA[ ... ]]]]><![CDATA[>\n';
+                        errorMessage += '- Escape any "]]]]><![CDATA[>" sequences in your code as "]]&gt;"\n';
+                        errorMessage += '- Check for nested CDATA sections (not allowed in XML)\n';
+                        errorMessage += '- If this is code containing XML, consider using string concatenation\n';
+                    }
+                    if (parseError.textContent.includes('tag')) {
+                        errorMessage += '- Check for missing closing tags\n';
+                        errorMessage += '- Ensure tags are properly nested\n';
+                        errorMessage += '- Verify tag names match exactly (case-sensitive)\n';
+                    }
+                }
+            }
+
+            errorDiv.innerHTML = `<pre>${errorMessage}</pre>`;
+            changesList.innerHTML = '';
+            changesList.appendChild(errorDiv);
             return;
         }
-        
+
         const codeChanges = xmlDoc.querySelector('code_changes');
-        const fileElements = codeChanges 
+        const fileElements = codeChanges
             ? Array.from(codeChanges.querySelectorAll('changed_files > file'))
             : Array.from(xmlDoc.getElementsByTagName('file'));
 
@@ -667,7 +764,6 @@ async function displayChanges(xmlContent) {
             diffLoading.classList.remove('hidden');
             diffViewer.innerHTML = '';
 
-            // short delay to show spinner
             await new Promise(resolve => setTimeout(resolve, 50));
 
             const operation = fileElement.getElementsByTagName('file_operation')[0]?.textContent || '';
@@ -732,7 +828,7 @@ async function displayChanges(xmlContent) {
             const operationSpan = document.createElement('span');
             operationSpan.className = 'operation';
             operationSpan.textContent = operation;
-            
+
             const pathDiv = document.createElement('div');
             pathDiv.className = 'path';
             pathDiv.textContent = filePath;
@@ -744,15 +840,14 @@ async function displayChanges(xmlContent) {
             changeItem.appendChild(operationSpan);
             changeItem.appendChild(pathDiv);
             changeItem.appendChild(summaryDiv);
-            
+
             changesList.appendChild(changeItem);
-            
+
             if (!firstChangeItem) {
                 firstChangeItem = changeItem;
                 changeItem.classList.add('selected');
             }
 
-            // small delay between file items
             await new Promise(resolve => setTimeout(resolve, 10));
         }
 
@@ -783,7 +878,7 @@ document.getElementById('apply-xml').addEventListener('click', async () => {
         alert('Please paste XML code to apply');
         return;
     }
-    
+
     try {
         const result = await ipcRenderer.invoke('apply-xml', xmlContent);
         if (result.success) {
@@ -814,11 +909,11 @@ function createFileListItem(filePath) {
     const fileListElement = document.getElementById('file-list');
     const fileItem = document.createElement('div');
     fileItem.classList.add('file-item');
-    
+
     const filePathSpan = document.createElement('span');
     filePathSpan.textContent = filePath;
     fileItem.appendChild(filePathSpan);
-    
+
     const removeButton = document.createElement('button');
     removeButton.textContent = '✖';
     removeButton.classList.add('remove-file');
@@ -827,6 +922,6 @@ function createFileListItem(filePath) {
         fileListElement.removeChild(fileItem);
     });
     fileItem.appendChild(removeButton);
-    
+
     fileListElement.appendChild(fileItem);
 }
