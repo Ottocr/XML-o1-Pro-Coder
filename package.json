@@ -1,0 +1,63 @@
+{
+  "name": "file-to-xml-paster",
+  "version": "1.0.0",
+  "description": "Drag and drop files to XML for ChatGPT",
+  "copyright": "Copyright © 2024 OttoCR",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder build --win --x64",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.ottoc.filetoxmlpaster",
+    "productName": "File to XML Paster",
+    "win": {
+      "target": "nsis",
+      "verifyUpdateCodeSignature": false,
+      "requestedExecutionLevel": "asInvoker",
+      "artifactName": "${productName}.${ext}",
+      "signAndEditExecutable": false,
+      "signDlls": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!**/*.ts",
+      "!*.code-workspace"
+    ],
+    "afterPack": "./disable-code-signing.js",
+    "forceCodeSigning": false,
+    "publish": null,
+    "generateUpdatesFilesForAllChannels": false,
+    "asar": false,
+    "removePackageScripts": true,
+    "removePackageKeywords": true
+  },
+  "keywords": [
+    "file",
+    "xml",
+    "chatgpt",
+    "drag-drop"
+  ],
+  "author": "OttoCR",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "28.0.0",
+    "electron-builder": "24.6.4"
+  },
+  "dependencies": {
+    "fs-extra": "10.1.0",
+    "path": "0.12.7",
+    "xml-escape": "1.1.0",
+    "xml2js": "0.6.2"
+  },
+  "type": "commonjs"
+}

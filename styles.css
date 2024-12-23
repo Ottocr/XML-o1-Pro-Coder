@@ -1,0 +1,471 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 40px;
+    background-color: #ffffff;
+    color: #1d1d1f;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    padding: 30px;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 500;
+}
+
+.app-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.app-header h1 {
+    font-size: 2.4em;
+    font-weight: 600;
+    margin: 0;
+    color: #1d1d1f;
+}
+
+.app-header p {
+    font-size: 1.1em;
+    color: #86868b;
+    margin: 8px 0 0 0;
+}
+
+.version-info {
+    margin-top: 12px;
+    font-size: 0.9em;
+    color: #86868b;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    align-items: center;
+}
+
+.version-info #version {
+    color: #0071e3;
+    font-weight: 500;
+}
+
+.version-info .author {
+    position: relative;
+    padding-left: 12px;
+}
+
+.version-info .author:before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 4px;
+    background: #86868b;
+    border-radius: 50%;
+}
+
+.drop-zone {
+    border: 2px dashed #86868b;
+    border-radius: 12px;
+    width: 100%;
+    text-align: center;
+    padding: 40px 20px;
+    margin-bottom: 30px;
+    transition: all 0.2s ease;
+    background: #fbfbfd;
+}
+
+.drop-zone p {
+    font-size: 1.1em;
+    color: #86868b;
+    margin: 0 0 15px 0;
+}
+
+.drop-zone button {
+    background: #0071e3;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.drop-zone button:hover {
+    background: #0077ed;
+    transform: translateY(-1px);
+}
+
+.drop-zone.drag-over {
+    background-color: #f0f0f0;
+}
+
+.file-list {
+    margin-bottom: 30px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #e5e5e5;
+    padding: 15px;
+    border-radius: 12px;
+    background: #fbfbfd;
+}
+
+.section-title {
+    font-size: 1.2em;
+    font-weight: 500;
+    margin: 0 0 15px 0;
+    color: #1d1d1f;
+}
+
+.file-item {
+    margin-bottom: 5px;
+    padding: 5px;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.file-item span {
+    flex-grow: 1;
+    margin-right: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.remove-file {
+    background-color: #ff4d4d;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+}
+
+.remove-file:hover {
+    background-color: #ff3333;
+}
+
+.request-container {
+    margin-top: 15px;
+    width: 100%;
+}
+
+.request-container label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.request-container textarea {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: vertical;
+    min-height: 100px;
+}
+
+.generate-btn {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    border-radius: 4px;
+}
+
+.generate-btn:hover {
+    background-color: #45a049;
+}
+
+.xml-section {
+    margin-top: 30px;
+    padding-top: 30px;
+    border-top: 1px solid #e5e5e5;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.history-section {
+    margin-top: 30px;
+    padding-top: 30px;
+    border-top: 1px solid #e5e5e5;
+}
+
+.history-list {
+    background: #fbfbfd;
+    border-radius: 12px;
+    padding: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.history-item {
+    padding: 15px;
+    border-bottom: 1px solid #e5e5e5;
+    font-size: 0.95em;
+}
+
+.history-item:last-child {
+    border-bottom: none;
+}
+
+.history-item .timestamp {
+    color: #86868b;
+    font-size: 0.9em;
+    margin-bottom: 5px;
+}
+
+.history-item .changes {
+    margin-top: 8px;
+    color: #1d1d1f;
+}
+
+.xml-input-container {
+    flex: 1;
+    min-width: 0;
+}
+
+.xml-results {
+    flex: 1;
+    min-width: 0;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 24px;
+    border-radius: 16px;
+    border: 1px solid var(--ios-border);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.xml-results h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #1d1d1f;
+    font-weight: 600;
+    font-size: 1.2em;
+}
+
+.changes-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.change-item {
+    padding: 8px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.change-item:hover {
+    filter: brightness(0.95);
+}
+
+.change-item.selected {
+    outline: 2px solid #0071e3;
+    background-color: rgba(0, 113, 227, 0.05);
+}
+
+.change-item.create {
+    background-color: #e3f2fd;
+    border: 1px solid #90caf9;
+}
+
+.change-item.update {
+    background-color: #f1f8e9;
+    border: 1px solid #aed581;
+}
+
+.change-item.delete {
+    background-color: #ffebee;
+    border: 1px solid #ef9a9a;
+}
+
+.change-item .operation {
+    font-weight: bold;
+    margin-right: 8px;
+}
+
+.change-item .path {
+    word-break: break-all;
+}
+
+.change-item .summary {
+    margin-top: 4px;
+    color: #666;
+    font-style: italic;
+}
+
+.xml-input-container label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.xml-input-container textarea {
+    width: 100%;
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    resize: vertical;
+    min-height: 200px;
+    font-family: 'SF Mono', Monaco, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    line-height: 1.5;
+    background: #fbfbfd;
+    transition: border-color 0.2s ease;
+}
+
+.xml-input-container textarea:focus {
+    outline: none;
+    border-color: #0071e3;
+}
+
+.apply-btn {
+    margin-top: 15px;
+    padding: 12px 24px;
+    background-color: #0071e3;
+    color: white;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    border-radius: 8px;
+    font-size: 1em;
+    transition: all 0.2s ease;
+}
+
+.apply-btn:hover {
+    background-color: #0077ed;
+    transform: translateY(-1px);
+}
+
+.apply-btn:active {
+    transform: translateY(0);
+}
+
+/* Diff viewer styles */
+.diff-viewer {
+    margin-top: 20px;
+    border-top: 1px solid #e5e5e5;
+    padding-top: 20px;
+}
+
+.diff-viewer h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.diff-content {
+    font-family: 'SF Mono', Monaco, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    background: #fbfbfd;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+.diff-content pre {
+    margin: 0;
+    padding: 8px;
+    white-space: pre;
+}
+
+.diff-content .line {
+    display: flex;
+    padding: 0 8px;
+    min-height: 20px;
+    line-height: 20px;
+}
+
+.diff-content .line:hover {
+    background: #f0f0f0;
+}
+
+.diff-content .line.separator {
+    color: #666;
+    text-align: center;
+    background: #f8f8f8;
+    user-select: none;
+    font-style: italic;
+    padding: 2px 0;
+    border-top: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+}
+
+.diff-content .line-number {
+    color: #999;
+    padding-right: 16px;
+    min-width: 40px;
+    text-align: right;
+    user-select: none;
+}
+
+.diff-content .line-content {
+    white-space: pre;
+}
+
+.diff-content .removed {
+    background-color: #ffeef0;
+}
+
+.diff-content .removed .line-content {
+    color: #cc0000;
+    background-color: #ffd7d5;
+}
+
+.diff-content .added {
+    background-color: #e6ffed;
+}
+
+.diff-content .added .line-content {
+    color: #008000;
+    background-color: #cdffd8;
+}
+
+.diff-content .line-content {
+    padding: 0 4px;
+    white-space: pre;
+    flex: 1;
+    border-radius: 2px;
+}
+
+.diff-header {
+    padding: 8px;
+    background: #f1f8ff;
+    border-bottom: 1px solid #e5e5e5;
+    font-weight: bold;
+    color: #0366d6;
+}
+
+.diff-file-header {
+    padding: 8px;
+    background: #f6f8fa;
+    border-bottom: 1px solid #e5e5e5;
+    font-weight: bold;
+}
