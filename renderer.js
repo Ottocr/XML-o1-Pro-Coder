@@ -4,6 +4,9 @@ const fs = require('fs');
 
 let selectedFiles = new Set();
 
+// Maximum number of lines to display in the diff to prevent huge rendering
+const MAX_DIFF_LINES = 2000;
+
 // Format timestamp to a readable format
 function formatTimestamp(isoString) {
     const date = new Date(isoString);
@@ -43,12 +46,12 @@ function preprocessCode(code) {
                 .replace(/\s*\)\s*/g, ')')
                 .replace(/\s*\[\s*/g, '[')
                 .replace(/\s*\]\s*/g, ']')
-                .trim(); // Final trim to ensure no leading/trailing space
+                .trim(); // Final trim
             
             return { indent, content, original: line };
         })
         .filter(line => line.content.length > 0) // Remove empty or whitespace-only lines
-        .map(line => line.indent + line.content); // Reconstruct the line with indentation
+        .map(line => line.indent + line.content); // Reconstruct
 }
 
 // Function to select anchor points from code
@@ -56,33 +59,30 @@ function selectAnchorPoints(lines, count = 10) {
     if (lines.length <= count) return lines.map((line, i) => ({ line, index: i }));
     
     const anchors = [];
-    const step = Math.floor(lines.length / count);
-    
-    // First pass: Find unique, complex lines that make good anchors
     const candidates = [];
+    
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         // Look for lines that:
-        // 1. Have significant content (not just brackets/semicolons)
-        // 2. Contain function definitions, class declarations, or unique variable assignments
+        // 1. Have significant content
+        // 2. Contain function/class/var keywords
         // 3. Are not comments
-        if (line && 
-            line.length > 15 && // Longer lines tend to be more unique
-            !line.match(/^[\s{}\[\]();]*$/) && // Skip simple structural lines
-            !line.match(/^\/\//) && // Skip comments
-            (line.includes('function ') || // Function definitions
-             line.includes('class ') || // Class declarations
-             line.includes(' = ') || // Variable assignments
-             line.includes('const ') || // Constant declarations
-             line.includes('let '))) { // Variable declarations
+        if (
+            line.length > 15 &&
+            !line.match(/^[\s{}\[\]();]*$/) &&
+            !line.match(/^\/\//) &&
+            (line.includes('function ') ||
+             line.includes('class ') ||
+             line.includes(' = ') ||
+             line.includes('const ') ||
+             line.includes('let '))
+        ) {
             candidates.push({ line: lines[i], index: i, score: calculateAnchorScore(line) });
         }
     }
     
-    // Sort candidates by score (higher is better)
+    // Sort and pick top candidates, distributing them
     candidates.sort((a, b) => b.score - a.score);
-    
-    // Select evenly distributed anchors from top candidates
     const totalSections = Math.min(count, candidates.length);
     const sectionSize = Math.floor(lines.length / totalSections);
     
@@ -90,11 +90,7 @@ function selectAnchorPoints(lines, count = 10) {
         const sectionStart = section * sectionSize;
         const sectionEnd = sectionStart + sectionSize;
         
-        // Find the best candidate in this section
-        const sectionCandidates = candidates.filter(c => 
-            c.index >= sectionStart && c.index < sectionEnd
-        );
-        
+        const sectionCandidates = candidates.filter(c => c.index >= sectionStart && c.index < sectionEnd);
         if (sectionCandidates.length > 0) {
             anchors.push(sectionCandidates[0]);
         }
@@ -103,38 +99,21 @@ function selectAnchorPoints(lines, count = 10) {
     return anchors;
 }
 
-// Calculate how good a line would be as an anchor
 function calculateAnchorScore(line) {
     let score = 0;
-    
-    // Longer lines are usually more unique
-    score += Math.min(line.length, 50) * 0.5;
-    
-    // Function definitions are very stable
+    score += Math.min(line.length, 50) * 0.5; // longer lines are more unique
     if (line.includes('function ')) score += 30;
-    
-    // Class declarations are very stable
     if (line.includes('class ')) score += 30;
-    
-    // Variable declarations are moderately stable
     if (line.includes('const ')) score += 20;
     if (line.includes('let ')) score += 15;
-    
-    // Lines with string literals are somewhat unique
     if (line.includes('"') || line.includes("'")) score += 10;
-    
-    // Lines with numbers are somewhat unique
     if (line.match(/\d+/)) score += 5;
-    
-    // Penalize very common patterns
     if (line.includes('return ')) score -= 5;
     if (line.includes('break;')) score -= 10;
     if (line.includes('continue;')) score -= 10;
-    
     return score;
 }
 
-// Function to find line offset using anchor points
 function findLineOffset(oldLines, newLines) {
     const anchors = selectAnchorPoints(oldLines);
     const offsets = new Map();
@@ -142,8 +121,6 @@ function findLineOffset(oldLines, newLines) {
     for (const anchor of anchors) {
         const anchorLine = anchor.line;
         const oldIndex = anchor.index;
-        
-        // Search for this anchor in new lines within a reasonable range
         const searchStart = Math.max(0, oldIndex - 50);
         const searchEnd = Math.min(newLines.length, oldIndex + 50);
         
@@ -156,7 +133,6 @@ function findLineOffset(oldLines, newLines) {
         }
     }
     
-    // Find most common offset
     let maxCount = 0;
     let mostCommonOffset = 0;
     for (const [offset, count] of offsets) {
@@ -169,18 +145,14 @@ function findLineOffset(oldLines, newLines) {
     return mostCommonOffset;
 }
 
-// Function to find minimal diff between two arrays of lines
+// Core diff function that returns an array describing changes
 function findMinimalDiff(oldLines, newLines) {
     const diff = [];
-    
-    // Filter out empty lines and create line number mapping
     const oldFiltered = oldLines.filter(line => line.trim().length > 0);
     const newFiltered = newLines.filter(line => line.trim().length > 0);
     
-    // Calculate line offset using filtered lines
     const lineOffset = findLineOffset(oldFiltered, newFiltered);
     
-    // Create a map of line content to indices for quick lookup
     const newLineMap = new Map();
     newFiltered.forEach((line, index) => {
         if (!newLineMap.has(line)) {
@@ -195,7 +167,6 @@ function findMinimalDiff(oldLines, newLines) {
     let newLineNumber = 1;
     
     while (oldIndex < oldFiltered.length || newIndex < newFiltered.length) {
-        // Handle case where we've reached the end of one array
         if (oldIndex >= oldFiltered.length) {
             while (newIndex < newFiltered.length) {
                 if (newFiltered[newIndex].trim().length > 0) {
@@ -228,7 +199,6 @@ function findMinimalDiff(oldLines, newLines) {
         const oldLine = oldFiltered[oldIndex];
         const newLine = newFiltered[newIndex];
         
-        // Skip empty lines
         if (oldLine.trim().length === 0) {
             oldIndex++;
             oldLineNumber++;
@@ -239,12 +209,10 @@ function findMinimalDiff(oldLines, newLines) {
             newLineNumber++;
             continue;
         }
-
-        // Check for exact match considering line offset
+        
         const expectedNewIndex = oldIndex + lineOffset;
-        if (expectedNewIndex >= 0 && expectedNewIndex < newFiltered.length && 
+        if (expectedNewIndex >= 0 && expectedNewIndex < newFiltered.length &&
             oldLine === newFiltered[expectedNewIndex]) {
-            // Lines match at the expected offset
             while (newIndex < expectedNewIndex) {
                 if (newFiltered[newIndex].trim().length > 0) {
                     diff.push({
@@ -269,53 +237,37 @@ function findMinimalDiff(oldLines, newLines) {
             continue;
         }
         
-        // Look for the current old line in nearby positions of new file
         const possibleNewIndices = newLineMap.get(oldLine) || [];
-        
-        // Find the best matching position by considering:
-        // 1. Distance from expected position (weighted most heavily)
-        // 2. Surrounding context similarity
         let bestMatch = -1;
         let bestScore = -1;
-        
         for (const idx of possibleNewIndices) {
-            if (Math.abs(idx - (oldIndex + lineOffset)) > 5) continue; // Skip if too far
+            if (Math.abs(idx - (oldIndex + lineOffset)) > 5) continue;
             
-            let score = 10 - Math.abs(idx - (oldIndex + lineOffset)); // Distance score
-            
-            // Check surrounding lines for context
+            let score = 10 - Math.abs(idx - (oldIndex + lineOffset));
             const contextSize = 2;
             let contextMatches = 0;
-            
-            // Look at lines before the match
             for (let i = 1; i <= contextSize; i++) {
-                if (oldIndex - i >= 0 && idx - i >= 0 && 
+                if (oldIndex - i >= 0 && idx - i >= 0 &&
                     oldFiltered[oldIndex - i] === newFiltered[idx - i]) {
                     contextMatches++;
                 }
             }
-            
-            // Look at lines after the match
             for (let i = 1; i <= contextSize; i++) {
-                if (oldIndex + i < oldFiltered.length && idx + i < newFiltered.length && 
+                if (oldIndex + i < oldFiltered.length && idx + i < newFiltered.length &&
                     oldFiltered[oldIndex + i] === newFiltered[idx + i]) {
                     contextMatches++;
                 }
             }
             
-            score += contextMatches * 2; // Context matching bonus
-            
+            score += contextMatches * 2;
             if (score > bestScore) {
                 bestScore = score;
                 bestMatch = idx;
             }
         }
         
-        const nearbyMatch = bestScore > 0 ? bestMatch : undefined;
-        
-        if (nearbyMatch !== undefined) {
-            // Found a match nearby - add any new lines before it
-            while (newIndex < nearbyMatch) {
+        if (bestScore > 0 && bestMatch !== -1) {
+            while (newIndex < bestMatch) {
                 if (newFiltered[newIndex].trim().length > 0) {
                     diff.push({
                         type: 'add',
@@ -339,7 +291,6 @@ function findMinimalDiff(oldLines, newLines) {
             continue;
         }
         
-        // No match found - handle as a change
         if (oldLine !== newLine) {
             diff.push({
                 type: 'remove',
@@ -349,7 +300,6 @@ function findMinimalDiff(oldLines, newLines) {
             oldIndex++;
             oldLineNumber++;
             
-            // Only add the new line if it's not found later near its expected position
             const futureMatch = possibleNewIndices.find(idx => 
                 idx > newIndex && Math.abs(idx - (oldIndex + lineOffset)) < 3
             );
@@ -368,75 +318,108 @@ function findMinimalDiff(oldLines, newLines) {
     return diff;
 }
 
-// Function to create a diff view for text content
-function createDiffView(originalContent, newContent) {
-    if (!originalContent && !newContent) return '<div class="diff-header">No content to compare</div>';
-    
-    // Initialize empty content as empty string
+// Build the diff array (without rendering) so we can render it in chunks
+function buildDiffArray(originalContent, newContent) {
     originalContent = originalContent || '';
     newContent = newContent || '';
-
+    
     const originalLines = preprocessCode(originalContent);
     const newLines = preprocessCode(newContent);
     
-    // Get the diff using minimal diff algorithm
     const diff = findMinimalDiff(originalLines, newLines);
+    return diff;
+}
+
+// Render the diff array in chunks to avoid blocking the UI
+async function renderDiffInChunks(diff, container) {
+    container.innerHTML = ''; // Clear existing
+    if (!diff.length) {
+        container.innerHTML = '<div class="diff-header">No changes detected</div>';
+        return;
+    }
     
-    let diffHtml = '<div class="diff-content">';
-    let changes = false;
-    let contextLines = 3; // Number of unchanged lines to show around changes
-    let lastPrintedLine = -1;
-    
-    for (let i = 0; i < diff.length; i++) {
-        const current = diff[i];
-        
-        // Determine if we should show this line based on proximity to changes
-        const nearbyChange = diff.slice(Math.max(0, i - contextLines), Math.min(diff.length, i + contextLines + 1))
-            .some(d => d.type === 'add' || d.type === 'remove');
-        
-        if (current.type !== 'same' || nearbyChange) {
-            // Add separator if we skipped lines
-            if (lastPrintedLine !== -1 && i > lastPrintedLine + 1) {
-                diffHtml += '<div class="line separator">...</div>';
-            }
-            
+    const limitedDiff = diff.slice(0, MAX_DIFF_LINES);
+    const total = limitedDiff.length;
+    const chunkSize = 200; // lines to render in each chunk
+    let index = 0;
+
+    // Show truncated notice if total diff lines exceed MAX_DIFF_LINES
+    if (diff.length > MAX_DIFF_LINES) {
+        container.innerHTML += `<div class="line separator">Diff is too large; only the first ${MAX_DIFF_LINES} lines are displayed.</div>`;
+    }
+
+    const diffProgress = document.getElementById('diff-progress');
+    const diffProgressBar = document.getElementById('diff-progress-bar');
+    if (diffProgress && diffProgressBar) {
+        diffProgress.classList.remove('hidden');
+        diffProgressBar.style.width = '0%';
+    }
+
+    while (index < total) {
+        // small delay to let UI update
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const chunk = limitedDiff.slice(index, index + chunkSize);
+        index += chunkSize;
+
+        // Build chunk HTML
+        let chunkHtml = '';
+        for (let i = 0; i < chunk.length; i++) {
+            const current = chunk[i];
             if (current.type === 'remove') {
-                changes = true;
-                diffHtml += `
+                chunkHtml += `
                     <div class="line removed">
-                        <span class="line-number">-${current.oldNum}</span>
+                        <span class="line-number">-${current.oldNum || ''}</span>
                         <span class="line-content">${escapeHtml(current.line)}</span>
                     </div>`;
             } else if (current.type === 'add') {
-                changes = true;
-                diffHtml += `
+                chunkHtml += `
                     <div class="line added">
-                        <span class="line-number">+${current.newNum}</span>
+                        <span class="line-number">+${current.newNum || ''}</span>
+                        <span class="line-content">${escapeHtml(current.line)}</span>
+                    </div>`;
+            } else if (current.type === 'same') {
+                chunkHtml += `
+                    <div class="line">
+                        <span class="line-number">${current.oldNum || ''}</span>
                         <span class="line-content">${escapeHtml(current.line)}</span>
                     </div>`;
             } else {
-                diffHtml += `
+                // fallback
+                chunkHtml += `
                     <div class="line">
-                        <span class="line-number">${current.oldNum}</span>
+                        <span class="line-number"></span>
                         <span class="line-content">${escapeHtml(current.line)}</span>
                     </div>`;
             }
-            lastPrintedLine = i;
+        }
+
+        // Append chunk
+        container.innerHTML += chunkHtml;
+
+        // Update progress
+        const progress = Math.min(Math.floor((index / total) * 100), 100);
+        if (diffProgressBar) {
+            diffProgressBar.style.width = `${progress}%`;
         }
     }
-    
-    diffHtml += '</div>';
-    return changes ? diffHtml : '<div class="diff-content"><div class="diff-header">No changes detected</div></div>';
+
+    if (diffProgress && diffProgressBar) {
+        // Hide after complete
+        setTimeout(() => {
+            diffProgress.classList.add('hidden');
+        }, 600);
+    }
 }
 
-// Helper function to escape HTML special characters
+// Helper function
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// Load and display history with diff view
+// Load and display history
 async function loadHistory() {
     const history = await ipcRenderer.invoke('get-history');
     const historyList = document.getElementById('history-list');
@@ -466,12 +449,43 @@ async function loadHistory() {
                 ${change.error ? `<div style="color: #ff3b30; margin-left: 20px;">${change.error}</div>` : ''}
             </div>`;
 
-            // Add diff view for updates
             if (change.success && change.operation === 'UPDATE' && change.originalContent && change.newContent) {
                 changeHtml += `
                     <div class="diff-file-header">${path.basename(change.path)}</div>
-                    ${createDiffView(change.originalContent, change.newContent)}
+                    <div class="diff-content">
                 `;
+                // Instead of chunking in history, just do a simple single render
+                const diffArray = buildDiffArray(change.originalContent, change.newContent);
+                if (diffArray.length === 0) {
+                    changeHtml += `<div class="diff-header">No changes detected</div>`;
+                } else {
+                    const limitedDiff = diffArray.slice(0, 100); // short snippet in history
+                    if (diffArray.length > 100) {
+                        changeHtml += `<div class="line separator">Showing first 100 lines only</div>`;
+                    }
+                    limitedDiff.forEach(d => {
+                        if (d.type === 'remove') {
+                            changeHtml += `
+                                <div class="line removed">
+                                    <span class="line-number">-${d.oldNum || ''}</span>
+                                    <span class="line-content">${escapeHtml(d.line)}</span>
+                                </div>`;
+                        } else if (d.type === 'add') {
+                            changeHtml += `
+                                <div class="line added">
+                                    <span class="line-number">+${d.newNum || ''}</span>
+                                    <span class="line-content">${escapeHtml(d.line)}</span>
+                                </div>`;
+                        } else if (d.type === 'same') {
+                            changeHtml += `
+                                <div class="line">
+                                    <span class="line-number">${d.oldNum || ''}</span>
+                                    <span class="line-content">${escapeHtml(d.line)}</span>
+                                </div>`;
+                        }
+                    });
+                }
+                changeHtml += `</div>`; // close diff-content
             }
 
             return changeHtml;
@@ -485,12 +499,9 @@ async function loadHistory() {
     });
 }
 
-// Load history when the app starts - wait for DOM to be ready
 document.addEventListener('DOMContentLoaded', () => {
-    // Load version and author info from package.json
     const packageInfo = require('./package.json');
     document.getElementById('version').textContent = `v${packageInfo.version}`;
-
     loadHistory().catch(err => {
         console.error('Error loading history:', err);
     });
@@ -521,7 +532,6 @@ document.getElementById('drop-area').addEventListener('drop', (e) => {
     
     const filePaths = [];
     
-    // Method 1: Try to extract paths from different sources
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         for (let i = 0; i < e.dataTransfer.files.length; i++) {
             const file = e.dataTransfer.files[i];
@@ -531,32 +541,23 @@ document.getElementById('drop-area').addEventListener('drop', (e) => {
         }
     }
     
-    // Method 2: Try to extract paths from items
     if (filePaths.length === 0 && e.dataTransfer.items) {
         for (let i = 0; i < e.dataTransfer.items.length; i++) {
             const item = e.dataTransfer.items[i];
-            
-            // Try different methods to get file path
             if (item.getAsFile && item.getAsFile()) {
                 const file = item.getAsFile();
                 if (file && file.path) {
                     filePaths.push(file.path);
                 }
             }
-            
-            // VSCode specific: try to get path from string representation
             if (item.type === 'text/plain') {
                 item.getAsString((str) => {
-                    // Try to extract file path from string
-                    const potentialPaths = str.split('\n').filter(line => {
-                        // Basic path validation
-                        return line.trim().length > 0 && 
-                               (line.includes(':\\') || line.startsWith('/'));
-                    });
-                    
+                    const potentialPaths = str.split('\n').filter(line =>
+                        line.trim().length > 0 &&
+                        (line.includes(':\\') || line.startsWith('/'))
+                    );
                     potentialPaths.forEach(potentialPath => {
                         try {
-                            // Verify the path exists
                             if (fs.existsSync(potentialPath)) {
                                 filePaths.push(potentialPath);
                             }
@@ -566,8 +567,6 @@ document.getElementById('drop-area').addEventListener('drop', (e) => {
                     });
                 });
             }
-            
-            // Fallback to webkitGetAsEntry
             const entry = item.webkitGetAsEntry();
             if (entry && entry.fullPath) {
                 filePaths.push(entry.fullPath);
@@ -575,20 +574,17 @@ document.getElementById('drop-area').addEventListener('drop', (e) => {
         }
     }
     
-    // Method 3: Last resort - try to parse dataTransfer text
     if (filePaths.length === 0) {
         try {
             const text = e.dataTransfer.getData('text');
             if (text) {
-                const potentialPaths = text.split('\n').filter(line => {
-                    // Basic path validation
-                    return line.trim().length > 0 && 
-                           (line.includes(':\\') || line.startsWith('/'));
-                });
+                const potentialPaths = text.split('\n').filter(line =>
+                    line.trim().length > 0 &&
+                    (line.includes(':\\') || line.startsWith('/'))
+                );
                 
                 potentialPaths.forEach(potentialPath => {
                     try {
-                        // Verify the path exists
                         if (fs.existsSync(potentialPath)) {
                             filePaths.push(potentialPath);
                         }
@@ -602,7 +598,6 @@ document.getElementById('drop-area').addEventListener('drop', (e) => {
         }
     }
     
-    // Remove duplicates and add to list
     const uniqueFilePaths = [...new Set(filePaths)];
     addFilesToList(uniqueFilePaths);
 });
@@ -628,12 +623,12 @@ document.getElementById('generate-xml').addEventListener('click', async () => {
     alert('XML has been copied to clipboard!');
 });
 
-// Function to parse XML and display changes with diff preview
-function displayChanges(xmlContent) {
+async function displayChanges(xmlContent) {
     const changesList = document.getElementById('changes-list');
     const diffViewer = document.querySelector('.diff-content');
+    const diffLoading = document.getElementById('diff-loading');
+    const diffToggle = document.getElementById('diff-toggle');
     
-    // Clear previous content
     changesList.innerHTML = '';
     if (diffViewer) {
         diffViewer.innerHTML = '';
@@ -647,85 +642,85 @@ function displayChanges(xmlContent) {
     try {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
-        
-        // Check for XML parsing errors
         const parseError = xmlDoc.querySelector('parsererror');
         if (parseError) {
             changesList.innerHTML = `<div class="change-item">Invalid XML format: ${parseError.textContent}</div>`;
             return;
         }
         
-        // First try to get files from code_changes structure
         const codeChanges = xmlDoc.querySelector('code_changes');
-        const fileElements = codeChanges ? 
-            Array.from(codeChanges.querySelectorAll('changed_files > file')) :
-            Array.from(xmlDoc.getElementsByTagName('file'));
+        const fileElements = codeChanges 
+            ? Array.from(codeChanges.querySelectorAll('changed_files > file'))
+            : Array.from(xmlDoc.getElementsByTagName('file'));
 
         if (fileElements.length === 0) {
             changesList.innerHTML = '<div class="change-item">No changes found in XML</div>';
             return;
         }
 
-        // Function to show diff for a file
-        const showDiffForFile = (fileElement) => {
-            const diffContent = document.querySelector('.diff-content');
-            if (!diffContent) return;
+        const showDiffForFile = async (fileElement) => {
+            if (!diffToggle.checked) {
+                diffViewer.innerHTML = '<div class="diff-header">Diff view is disabled</div>';
+                return;
+            }
+
+            diffLoading.classList.remove('hidden');
+            diffViewer.innerHTML = '';
+
+            // short delay to show spinner
+            await new Promise(resolve => setTimeout(resolve, 50));
 
             const operation = fileElement.getElementsByTagName('file_operation')[0]?.textContent || '';
             const filePath = fileElement.getElementsByTagName('file_path')[0]?.textContent || '';
             const fileCode = fileElement.getElementsByTagName('file_code')[0]?.textContent || '';
 
-            if (operation.toUpperCase() === 'UPDATE') {
-                try {
+            try {
+                if (operation.toUpperCase() === 'UPDATE') {
                     if (fs.existsSync(filePath)) {
                         const originalContent = fs.readFileSync(filePath, 'utf-8');
-                        diffContent.innerHTML = createDiffView(originalContent, fileCode);
+                        const diffArray = buildDiffArray(originalContent, fileCode);
+                        await renderDiffInChunks(diffArray, diffViewer);
                     } else {
-                        diffContent.innerHTML = '<div class="diff-header">Original file not found</div>';
+                        diffViewer.innerHTML = '<div class="diff-header">Original file not found</div>';
                     }
-                } catch (error) {
-                    console.error('Error reading file for diff:', error);
-                    diffContent.innerHTML = `<div class="diff-header">Error: ${error.message}</div>`;
-                }
-            } else if (operation.toUpperCase() === 'CREATE') {
-                diffContent.innerHTML = `<div class="diff-header">New File</div>${createDiffView('', fileCode)}`;
-            } else if (operation.toUpperCase() === 'DELETE') {
-                try {
+                } else if (operation.toUpperCase() === 'CREATE') {
+                    const diffArray = buildDiffArray('', fileCode);
+                    diffViewer.innerHTML = `<div class="diff-header">New File</div>`;
+                    await renderDiffInChunks(diffArray, diffViewer);
+                } else if (operation.toUpperCase() === 'DELETE') {
                     if (fs.existsSync(filePath)) {
                         const content = fs.readFileSync(filePath, 'utf-8');
-                        diffContent.innerHTML = `<div class="diff-header">File to be deleted</div>${createDiffView(content, '')}`;
+                        const diffArray = buildDiffArray(content, '');
+                        diffViewer.innerHTML = `<div class="diff-header">File to be deleted</div>`;
+                        await renderDiffInChunks(diffArray, diffViewer);
                     } else {
-                        diffContent.innerHTML = '<div class="diff-header">File already deleted</div>';
+                        diffViewer.innerHTML = '<div class="diff-header">File already deleted or not found</div>';
                     }
-                } catch (error) {
-                    console.error('Error reading file for deletion preview:', error);
-                    diffContent.innerHTML = `<div class="diff-header">Error: ${error.message}</div>`;
                 }
+            } catch (error) {
+                console.error('Error generating diff:', error);
+                diffViewer.innerHTML = `<div class="diff-header">Error: ${error.message}</div>`;
+            } finally {
+                diffLoading.classList.add('hidden');
             }
         };
 
-        // Function to update selected state
         const updateSelectedState = (selectedItem) => {
-            // Remove selected class from all items
             document.querySelectorAll('.change-item').forEach(item => {
                 item.classList.remove('selected');
             });
-            // Add selected class to clicked item
             selectedItem.classList.add('selected');
         };
 
         let firstChangeItem = null;
-
-        // Show first file's changes by default
         if (fileElements.length > 0) {
-            showDiffForFile(fileElements[0]);
+            await showDiffForFile(fileElements[0]);
         }
 
         for (const fileElement of fileElements) {
             const summary = fileElement.getElementsByTagName('file_summary')[0]?.textContent || '';
             const operation = fileElement.getElementsByTagName('file_operation')[0]?.textContent || '';
             const filePath = fileElement.getElementsByTagName('file_path')[0]?.textContent || '';
-            const fileCode = fileElement.getElementsByTagName('file_code')[0]?.textContent || '';
 
             const changeItem = document.createElement('div');
             changeItem.className = `change-item ${operation.toLowerCase()}`;
@@ -752,18 +747,25 @@ function displayChanges(xmlContent) {
             
             changesList.appendChild(changeItem);
             
-            // Store reference to first item
             if (!firstChangeItem) {
                 firstChangeItem = changeItem;
                 changeItem.classList.add('selected');
             }
+
+            // small delay between file items
+            await new Promise(resolve => setTimeout(resolve, 10));
         }
+
+        diffToggle.addEventListener('change', () => {
+            if (firstChangeItem) {
+                showDiffForFile(fileElements[0]);
+            }
+        });
     } catch (error) {
         changesList.innerHTML = `<div class="change-item">Error parsing XML: ${error.message}</div>`;
     }
 }
 
-// Update changes list when XML content changes
 document.getElementById('xml-input').addEventListener('input', (e) => {
     const xmlContent = e.target.value.trim();
     if (xmlContent) {
@@ -777,7 +779,6 @@ document.getElementById('xml-input').addEventListener('input', (e) => {
 
 document.getElementById('apply-xml').addEventListener('click', async () => {
     const xmlContent = document.getElementById('xml-input').value.trim();
-    
     if (!xmlContent) {
         alert('Please paste XML code to apply');
         return;
@@ -786,14 +787,10 @@ document.getElementById('apply-xml').addEventListener('click', async () => {
     try {
         const result = await ipcRenderer.invoke('apply-xml', xmlContent);
         if (result.success) {
-            // Clear the input and changes list after successful application
             document.getElementById('xml-input').value = '';
             document.getElementById('changes-list').innerHTML = '';
             document.querySelector('.diff-content').innerHTML = '';
-            
-            // Reload history to show new changes
             await loadHistory();
-            
             alert('Successfully applied XML changes!');
         } else {
             alert(`Failed to apply XML changes: ${result.error}`);
@@ -805,9 +802,7 @@ document.getElementById('apply-xml').addEventListener('click', async () => {
 
 function addFilesToList(filePaths) {
     filePaths.forEach(filePath => {
-        // Normalize the path to handle different path formats
         const normalizedPath = path.normalize(filePath);
-        
         if (!selectedFiles.has(normalizedPath)) {
             selectedFiles.add(normalizedPath);
             createFileListItem(normalizedPath);
